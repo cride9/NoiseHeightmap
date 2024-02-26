@@ -8,7 +8,8 @@ namespace HeightMap {
 
         public HeightMap( ) =>
             InitializeComponent( );
-        
+
+        // Smaller value generates bigger "blobs"
         float zoomLevel = 0.01f;
         bool renderOnce = true;
 
