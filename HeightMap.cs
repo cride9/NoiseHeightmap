@@ -14,42 +14,39 @@ namespace HeightMap {
                 ControlStyles.Opaque |
                 ControlStyles.OptimizedDoubleBuffer |
                 ControlStyles.AllPaintingInWmPaint, true );
-        }
 
+            bounds = Screen.PrimaryScreen!.Bounds;
+            heightMap = new float[ bounds.Width, bounds.Height ];
+
+            // 8) do NOT go out of the render size
+            MaximumSize = new Size( bounds.Width, bounds.Height );
+        }
         // Smaller value generates bigger "blobs"
-        float zoomLevel = 0.005f;
-        (int x, int y) offset = (0, 0);
-        List<int> levelQueue = new( );
+        private const float zoomLevel = 0.005f;
+
+        // Can 'move' around
+        private (int x, int y) offset = (0, 0);
+
+        // Handles level drawing
+        private List<int> levelQueue = new( );
+
+        // optimization
+        private SolidBrush brush = new SolidBrush( Color.White );
+        private Rectangle bounds;
+        private float[ , ] heightMap;
 
         private void OnPaint( object sender, PaintEventArgs e ) {
 
-            // Render once, to not rape your CPU
+            // Render!!
             BufferMap( e );
-
-            // Magic happened
-            bufferedGraphics.Render( e.Graphics );
         }
 
         private void BufferMap( PaintEventArgs e ) {
 
             // Make a brush from the forecolor
-            SolidBrush forecolorBrush = new SolidBrush( ForeColor );
-
-            // Get primary screen size
-            var bounds = Screen.PrimaryScreen!.Bounds;
-
-            // 8) do NOT go out of the render size
-            MaximumSize = new Size( bounds.Width, bounds.Height );
-
-            // Allocate graphics buffer
-            bufferedGraphics = BufferedGraphicsManager.Current.Allocate( e.Graphics, new Rectangle( 0, 0, bounds.Width, bounds.Height ) );
-            Graphics bg = bufferedGraphics.Graphics;
-            bg.SmoothingMode = SmoothingMode.HighSpeed;
-            bg.CompositingQuality = CompositingQuality.HighSpeed;
-            bg.InterpolationMode = InterpolationMode.Low;
+            var bg = e.Graphics;
 
             // Decleare the new height map
-            float[ , ] heightMap = new float[ bounds.Width, bounds.Height ];
             for ( int x = 0; x < bounds.Width; x++ )
                 for ( int y = 0; y < bounds.Height; y++ )
                     heightMap[ x, y ] = Noise.CalcPixel2D( x + offset.x, y + offset.y, zoomLevel );
@@ -57,28 +54,25 @@ namespace HeightMap {
             // Do magic! ( draw each height layer by layer )
 
             // Levels to draw
-            int[ ] levels = levelQueue.ToArray( );
-
-            // Iterate through the levels
-            for ( int i = 0; i < levels.Length; i++ ) {
+            foreach ( var level in levelQueue ) {
 
                 // Iterate through the screen size (X,Y)
                 for ( int x = 1; x < bounds.Width; x++ ) {
                     for ( int y = 1; y < bounds.Height; y++ ) {
 
                         // Check if the level of that generation is good or not
-                        if ( ( heightMap[ x, y ] >= levels[ i ] && heightMap[ x - 1, y ] < levels[ i ] ) ||
-                            ( heightMap[ x, y ] < levels[ i ] && heightMap[ x - 1, y ] >= levels[ i ] ) ||
-                            ( heightMap[ x, y ] >= levels[ i ] && heightMap[ x, y - 1 ] < levels[ i ] ) ||
-                            ( heightMap[ x, y ] < levels[ i ] && heightMap[ x, y - 1 ] >= levels[ i ] ) ) {
+                        if ( ( heightMap[ x, y ] >= level && heightMap[ x - 1, y ] < level ) ||
+                            ( heightMap[ x, y ] < level && heightMap[ x - 1, y ] >= level ) ||
+                            ( heightMap[ x, y ] >= level && heightMap[ x, y - 1 ] < level ) ||
+                            ( heightMap[ x, y ] < level && heightMap[ x, y - 1 ] >= level ) ) {
 
                             // Draw a pixel :nerd:
-                            bg.FillRectangle( new SolidBrush( Color.FromArgb( levels[ i ], 255, 255, 255 ) ), x, y, 1, 1 );
+                            brush.Color = Color.FromArgb( level, 255, 255, 255 );
+                            bg.FillRectangle( brush, x, y, 1, 1 );
                         }
                     }
                 }
             }
-
         }
 
         private DateTime backupTime;
@@ -86,13 +80,11 @@ namespace HeightMap {
         private int rndBackup = 0;
         private void RefreshTimer( object sender, EventArgs e ) {
 
-            Invalidate( );
-            
             if ( DateTime.Now.Subtract(backupTime).Seconds > rndBackup ) {
 
                 backupTime = DateTime.Now;
                 levelQueue.Add( 20 );
-                rndBackup = rnd.Next( 2, 7 );
+                rndBackup = rnd.Next( 1, 4 );
             }
 
             for ( int i = 0; i < levelQueue.Count; i++ )
@@ -100,6 +92,7 @@ namespace HeightMap {
 
             offset.x++;
             levelQueue.RemoveAll( i => i > 255 );
+            Invalidate( );
         }
     }
 }
